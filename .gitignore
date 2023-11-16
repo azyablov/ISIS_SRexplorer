@@ -1,0 +1,6 @@
+.venv/
+.bkp/
+YANG/
+7x50_YangModels/
+__pycache__/
+*.pyc

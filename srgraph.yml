@@ -1,0 +1,29 @@
+# Data path to SROS YANG models to speed up communication and avoid loading them. Pls use https://github.com/nokia/7x50_YangModels.git
+yang_path: './7x50_YangModels/YANG'
+# Root node is used to identify node system IDs and names. Nodes aren't in the topology DB will be reflected as orphaned. 
+root:
+  host: 127.0.0.1
+  user: 'netconf'
+  pwd: 'nokia123'
+  netconf_port: 1831
+nodes:
+# sre2
+  - host: 127.0.0.1
+    user: 'netconf'
+    pwd: 'nokia123'
+    netconf_port: 1832
+# sre3
+  - host: 127.0.0.1
+    user: 'netconf'
+    pwd: 'nokia123'
+    netconf_port: 1833
+# sre4
+  - host: 127.0.0.1
+    user: 'netconf'
+    pwd: 'nokia123'
+    netconf_port: 1834
+# sre5
+  - host: 127.0.0.1
+    user: 'netconf'
+    pwd: 'nokia123'
+    netconf_port: 1835
