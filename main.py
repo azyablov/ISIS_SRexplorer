@@ -1,5 +1,5 @@
 """
-The scipt is used to draw ISIS SR domain graph.
+Visualizes ISIS Segment Routing domain, Node-SID/Interface/Adj-SID labels, performs simple SFP path calculation and provides adjacency SID matrix.
 """
 
 import sys
@@ -13,7 +13,6 @@ from graph import VNode, VEdge
 import networkx as nx
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
-import re
 from typing import List, Dict, Tuple
 import yaml
 import numpy as np
@@ -23,9 +22,9 @@ def get_connection(host: str, user: str, pwd: str, y_dir: str = "./7x50_YangMode
     """Function definition to obtain a Connection object to a specific SROS NE.
     :parameter host: The hostname or IP address of the SR OS node.
     :type host: str
-    :paramater user: SROS username.
+    :parameter user: SROS username.
     :type user: str
-    :paramater pwd: SROS password.
+    :parameter pwd: SROS password.
     :type pwd: str
     :parameter port: NETCONF TCP port on SROS NE.
     :type port: int
@@ -61,6 +60,7 @@ def load_config(filename: str = 'srgraph.yml') -> dict:
         config = yaml.safe_load(f)
     return config
 
+
 def sys_id_in_nodes(nodes: List[VNode], system_id: str) -> bool:
     """Function definition to check if system id is in the list of nodes.
     :parameter nodes: List of nodes.
@@ -77,6 +77,7 @@ def sys_id_in_nodes(nodes: List[VNode], system_id: str) -> bool:
             return True
         idx += 1
     return False
+
 
 def sys_to_idx(nodes: List[VNode], system_id: str) -> int:
     """Function definition to get index of the node in the list of nodes.
@@ -115,7 +116,7 @@ def name_to_idx(nodes: List[VNode], name: str) -> int:
     return -1
 
 
-def get_inf_adjs(isis: Container, nodes: List[VNode], adj_martix: List[List[VEdge]]) -> List[VEdge]:
+def get_inf_adjs(isis: Container, nodes: List[VNode], adj_matrix: List[List[VEdge]]) -> List[VEdge]:
     """Function definition to get adjacency data from ISIS container.
     :parameter isis: ISIS container.
     :type isis: Container
@@ -123,8 +124,8 @@ def get_inf_adjs(isis: Container, nodes: List[VNode], adj_martix: List[List[VEdg
     :type nodes: List[VNode]
     :parameter adjs: List of adjacencies.
     :type adjs: List[VEdge]
-    :parameter adj_martix: Adjacency matrix.
-    :type adj_martix: List[List[int]]
+    :parameter adj_matrix: Adjacency matrix.
+    :type adj_matrix: List[List[int]]
     :returns: List of adjacency labels.
     :rtype: List[str]
     """
@@ -142,8 +143,8 @@ def get_inf_adjs(isis: Container, nodes: List[VNode], adj_martix: List[List[VEdg
             adj_sid = 0
 
             if adj.data['oper-state'].data == 'up': # proceed if adjacency up
-                nbr_id = adj.data['neighbor'].data['system-id'].replace('0x','') # normalise nbr_id
-                nbr_id = '.'.join([nbr_id[i:i+4] for i in range(0, len(nbr_id), 4)]) # normalise nbr_id
+                nbr_id = adj.data['neighbor'].data['system-id'].replace('0x','') # normalize nbr_id
+                nbr_id = '.'.join([nbr_id[i:i+4] for i in range(0, len(nbr_id), 4)]) # normalize nbr_id
                 if not sys_id_in_nodes(nodes, nbr_id): # check if nbr_id in nodes
                     continue # if not, skip it, bcz multi-level topology is not supported now
                 adj_sid = adj.data['sr-ipv4'].data['sid-value'].data # get adj SID
@@ -151,8 +152,8 @@ def get_inf_adjs(isis: Container, nodes: List[VNode], adj_martix: List[List[VEdg
                 ve = VEdge(nodes[src_node_idx], nodes[dst_node_idx], adj_sid) # create adjacency object
                 ve.inf_name = inf_name # add interface name to adjacency object
                 ve.nei_snpa = nei_snpa # add neighbor SNPA to adjacency object
-                if adj_martix[src_node_idx][dst_node_idx] is None: # check if adjacency matrix is empty
-                    adj_martix[src_node_idx][dst_node_idx] = ve # fill in adjacency matrix with adj SID (the first found will be used)
+                if adj_matrix[src_node_idx][dst_node_idx] is None: # check if adjacency matrix is empty
+                    adj_matrix[src_node_idx][dst_node_idx] = ve # fill in adjacency matrix with adj SID (the first found will be used)
                 adjs.append(ve) # add adjacency to the list of adjacencies
     return adjs
 
@@ -262,15 +263,15 @@ def get_inf_mac_by_adj(conn: Connection, node_adj: List[VEdge]) -> None:
     for e in node_adj:
         try:
             # Getting interface port.
-            inf_port = conn.running.get(f'/nokia-conf:configure/router[router-name=Base]/interface[interface-name={e.inf_name}]/port', defaults=False).data
+            inf_port = conn.running.get(f'/nokia-conf:configure/router[router-name="Base"]/interface[interface-name={e.inf_name}]/port', defaults=False).data
             
-            # Normalise to leave only port.
+            # Normalize to leave only port.
             assert isinstance(inf_port, str)
             port: str = inf_port.split(':')[0]
             # Getting MAC address from /state.
             mac = conn.running.get(f'/nokia-state:state/port[port-id="{port}"]/hardware-mac-address', defaults=True).data
             
-            # Normalise MAC address.
+            # Normalize MAC address.
             assert isinstance(mac, str)
             mac = mac.replace(':', '').lower()
             mac = '0x' + mac
@@ -291,7 +292,7 @@ def get_script_args() -> dict:
     :rtype: dict
     """
     import argparse
-    parser = argparse.ArgumentParser(description='Draw ISIS SR domain graph.')
+    parser = argparse.ArgumentParser(description='Visualizes ISIS Segment Routing domain, Node-SID/Interface/Adj-SID labels, performs simple SFP path calculation and provides adjacency SID matrix.')
     parser.add_argument('-c', '--config', help='Configuration file name.', default='srgraph.yml')
     parser.add_argument('-y', '--yang', help='YANG models directory.', default='./7x50_YangModels/YANG')
     parser.add_argument('-n', '--nport', help='default NETCONF port.',  default=830)
@@ -338,7 +339,7 @@ def main():
     try:
         isis_0 = root_conn.running.get('/nokia-state:state/router[router-name="Base"]/isis[isis-instance="0"]',
                                 defaults=True)
-        srgb = root_conn.running.get('/configure/router[router-name=Base]/mpls-labels/sr-labels', defaults=True)
+        srgb = root_conn.running.get('/nokia-conf:configure/router[router-name="Base"]/mpls-labels/sr-labels', defaults=True)
     except SrosMgmtError as mgmt_err:
         print(f"SROS management err: {mgmt_err}")
         sys.exit(1)
